@@ -34,5 +34,5 @@ if request then
     request = new_request 
 end
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/caualelek12/Aspect-Software/refs/heads/main/Loader.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/constantdump/cracks/refs/heads/main/aspectsoftware/loader/obfuscated.lua"))()
 
