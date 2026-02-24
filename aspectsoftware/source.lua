@@ -1,5 +1,90 @@
-local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/bigdanix/elegant-ui-libs/refs/heads/main/millenium/source"))()
+--// SILENT ERROR LOGGER
+local ERROR_FILE = "AspectSoftware/errors.txt"
+local function logError(err)
+    pcall(function()
+        local existing = ""
+        if isfile(ERROR_FILE) then existing = readfile(ERROR_FILE) end
+        local line = os.date("[%d/%m/%Y %H:%M:%S] ") .. tostring(err) .. "\n"
+        writefile(ERROR_FILE, existing .. line)
+    end)
+end
+warn = function(...) logError("WARN: " .. table.concat({...}, " ")) end
+print = function() end
 
+-- Helper: pcall com log automático
+local function safeCall(label, fn, ...)
+    local args = {...}
+    local ok, err = pcall(fn, table.unpack(args))
+    if not ok then
+        logError("[" .. label .. "] " .. tostring(err))
+    end
+    return ok
+end
+
+-- threads externas SEM modificar task (readonly)
+local _taskspawn = task.spawn
+local function safeSpawn(fn, ...)
+    local args = {...}
+    return _taskspawn(function()
+        local ok, err = pcall(fn, table.unpack(args))
+        if not ok then logError("THREAD ERROR: " .. tostring(err)) end
+    end)
+end
+
+local _spawn = spawn
+spawn = function(fn)
+    _taskspawn(function()
+        local ok, err = pcall(fn)
+        if not ok then logError("SPAWN ERROR: " .. tostring(err)) end
+    end)
+end
+
+local _taskdelay = task.delay
+local function safeDelay(t, fn, ...)
+    local args = {...}
+    return _taskdelay(t, function()
+        local ok, err = pcall(fn, table.unpack(args))
+        if not ok then logError("DELAY ERROR: " .. tostring(err)) end
+    end)
+end
+
+local token = "tokenmug812938123lios1231231231232435234hel213123123123lom12381238012yniffasNIGGERS"
+
+local function getScript(route)
+    local body = nil
+    local ok, err = pcall(function()
+        local response = request({
+            Url = "http://muglios.ddns.net:45905/" .. route,
+            Method = "GET",
+            Headers = {
+                ["Authorization"] = "Bearer " .. token
+            }
+        })
+
+        if response.StatusCode == 200 then
+            body = response.Body
+        else
+            logError("FAILED TO GET " .. route .. " | Status: " .. tostring(response.StatusCode))
+        end
+    end)
+    if not ok then logError("getScript ERROR [" .. route .. "]: " .. tostring(err)) end
+    return body
+end
+
+local Espliberary = getScript("Espliberary")
+local UILIB = getScript("UILIB")
+
+if Espliberary then
+    local ok, err = pcall(function() Espliberary = loadstring(Espliberary)() end)
+    if not ok then logError("Espliberary LOAD ERROR: " .. tostring(err)) end
+end
+
+if UILIB then
+    local ok, err = pcall(function() library = loadstring(UILIB)() end)
+    if not ok then logError("UILIB LOAD ERROR: " .. tostring(err)) end
+end
+
+-- Services
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
@@ -59,7 +144,7 @@ local flyVelocity, flySpeed = nil, 16
 
 local AimFovCircle = nil
 if hasDrawing then
-    pcall(function()
+    local ok, err = pcall(function()
         AimFovCircle = Drawing.new("Circle")
         AimFovCircle.Visible = false
         AimFovCircle.Thickness = 2
@@ -68,10 +153,11 @@ if hasDrawing then
         AimFovCircle.Transparency = 0.8
         AimFovCircle.Filled = false
     end)
+    if not ok then logError("AimFovCircle INIT ERROR: " .. tostring(err)) end
 end
 
 local function updateFOVCircle()
-    pcall(function()
+    local ok, err = pcall(function()
         if hasDrawing and AimFovCircle then
             AimFovCircle.Visible = states.showFOV and states.aimbot
             if AimFovCircle.Visible then
@@ -80,20 +166,22 @@ local function updateFOVCircle()
             end
         end
     end)
+    if not ok then logError("updateFOVCircle ERROR: " .. tostring(err)) end
 end
+
 
 local noclipConnection = nil
 
 local function setNoClipState(state)
-    pcall(function()
+    local ok, err = pcall(function()
         states.noclip = state
         if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
         local char = LocalPlayer.Character
-        if not char then return end
+        if not char then logError("Noclip: Character not found") return end
         local hum = char:FindFirstChild("Humanoid")
         local root = char:FindFirstChild("HumanoidRootPart")
-        if not hum or not root then return end
-        
+        if not hum or not root then logError("Noclip: Humanoid or HumanoidRootPart missing") return end
+
         if state then
             root.CFrame = root.CFrame * CFrame.Angles(math.rad(180), 0, 0)
             for _, p in ipairs(char:GetDescendants()) do
@@ -101,7 +189,7 @@ local function setNoClipState(state)
             end
             hum:ChangeState(Enum.HumanoidStateType.Physics)
             noclipConnection = RS.Stepped:Connect(function()
-                pcall(function()
+                local ok2, err2 = pcall(function()
                     if not root or not root.Parent then return end
                     root.CFrame = CFrame.new(root.Position) * CFrame.Angles(math.rad(180), 0, 0)
                     local move = Vector3.new()
@@ -119,6 +207,7 @@ local function setNoClipState(state)
                         root.Velocity = Vector3.zero
                     end
                 end)
+                if not ok2 then logError("Noclip LOOP ERROR: " .. tostring(err2)) end
             end)
         else
             root.CFrame = root.CFrame * CFrame.Angles(math.rad(180), 0, 0)
@@ -129,19 +218,21 @@ local function setNoClipState(state)
             root.Velocity = Vector3.zero
         end
     end)
+    if not ok then logError("setNoClipState ERROR: " .. tostring(err)) end
 end
+
 
 local speedConnection = nil
 local function setCFSpeed(enabled)
-    pcall(function()
-        states.cfSpeed = true
+    local ok, err = pcall(function()
+        states.cfSpeed = enabled
         if speedConnection then
             speedConnection:Disconnect()
             speedConnection = nil
         end
         if enabled then
             speedConnection = RunService.RenderStepped:Connect(function()
-                pcall(function()
+                local ok2, err2 = pcall(function()
                     local hrp = getRootPart()
                     local hum = getHumanoid()
                     if hrp and hum and hum.MoveDirection.Magnitude > 0 then
@@ -149,23 +240,26 @@ local function setCFSpeed(enabled)
                         hrp.CFrame = hrp.CFrame + (hum.MoveDirection * (mult / 5))
                     end
                 end)
+                if not ok2 then logError("CFrame Speed LOOP ERROR: " .. tostring(err2)) end
             end)
         end
     end)
+    if not ok then logError("setCFSpeed ERROR: " .. tostring(err)) end
 end
+
 
 local expandedPlayers = {}
 local hitboxConnection = nil
 
 local function setHitbox(enabled)
-    pcall(function()
+    local ok, err = pcall(function()
         states.hitboxEnabled = enabled
         if hitboxConnection then
             hitboxConnection:Disconnect()
             hitboxConnection = nil
         end
         for player, data in pairs(expandedPlayers) do
-            pcall(function()
+            local ok2, err2 = pcall(function()
                 if data.part and data.part.Parent then
                     data.part.Size = data.originalSize
                     data.part.Transparency = data.originalTransparency
@@ -173,17 +267,18 @@ local function setHitbox(enabled)
                     data.part.Massless = false
                 end
             end)
+            if not ok2 then logError("Hitbox RESTORE ERROR [" .. tostring(player) .. "]: " .. tostring(err2)) end
         end
         expandedPlayers = {}
         if enabled then
             hitboxConnection = RunService.Heartbeat:Connect(function()
-                pcall(function()
+                local ok2, err2 = pcall(function()
                     local playersFolder = workspace:FindFirstChild("Players") or workspace
                     for _, player in ipairs(playersFolder:GetChildren()) do
                         if player ~= getCharacter() then
                             local hum = player:FindFirstChildOfClass("Humanoid")
                             if hum and hum.Health > 0 then
-                                local targetPart = settings.hitboxPart == "Body" and 
+                                local targetPart = settings.hitboxPart == "Body" and
                                                  (player:FindFirstChild("HumanoidRootPart") or player:FindFirstChild("Torso")) or
                                                  player:FindFirstChild("Head")
                                 if targetPart then
@@ -204,16 +299,19 @@ local function setHitbox(enabled)
                         end
                     end
                 end)
+                if not ok2 then logError("Hitbox LOOP ERROR: " .. tostring(err2)) end
             end)
         end
     end)
+    if not ok then logError("setHitbox ERROR: " .. tostring(err)) end
 end
+
 
 local aimbotConnection = nil
 
 local function getClosestTarget(maxDist, targetPartSetting)
     local closest, closestDist = nil, maxDist
-    pcall(function()
+    local ok, err = pcall(function()
         local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
         local playersFolder = workspace:FindFirstChild("Players") or workspace
         for _, p in ipairs(playersFolder:GetChildren()) do
@@ -225,9 +323,9 @@ local function getClosestTarget(maxDist, targetPartSetting)
                         local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                         if onScreen then
                             local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                            if dist < closestDist then 
+                            if dist < closestDist then
                                 closestDist = dist
-                                closest = part 
+                                closest = part
                             end
                         end
                     end
@@ -235,11 +333,12 @@ local function getClosestTarget(maxDist, targetPartSetting)
             end
         end
     end)
+    if not ok then logError("getClosestTarget ERROR: " .. tostring(err)) end
     return closest
 end
 
 local function setAimbot(enabled)
-    pcall(function()
+    local ok, err = pcall(function()
         states.aimbot = enabled
         if aimbotConnection then
             aimbotConnection:Disconnect()
@@ -247,7 +346,7 @@ local function setAimbot(enabled)
         end
         if enabled then
             aimbotConnection = RunService.RenderStepped:Connect(function()
-                pcall(function()
+                local ok2, err2 = pcall(function()
                     updateFOVCircle()
                     if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) and hasMouseMove then
                         local target = getClosestTarget(settings.aimFOV or 120, settings.aimPart or "Head")
@@ -259,18 +358,22 @@ local function setAimbot(enabled)
                         end
                     end
                 end)
+                if not ok2 then logError("Aimbot LOOP ERROR: " .. tostring(err2)) end
             end)
         else
             if hasDrawing and AimFovCircle then
-                pcall(function() AimFovCircle.Visible = false end)
+                local ok2, err2 = pcall(function() AimFovCircle.Visible = false end)
+                if not ok2 then logError("Aimbot FOV hide ERROR: " .. tostring(err2)) end
             end
         end
     end)
+    if not ok then logError("setAimbot ERROR: " .. tostring(err)) end
 end
+
 
 local silentWalkConnection = nil
 local function setSilentWalk(enabled)
-    pcall(function()
+    local ok, err = pcall(function()
         states.silentWalk = enabled
         if silentWalkConnection then
             silentWalkConnection:Disconnect()
@@ -278,7 +381,7 @@ local function setSilentWalk(enabled)
         end
         if enabled then
             silentWalkConnection = RunService.Heartbeat:Connect(function()
-                pcall(function()
+                local ok2, err2 = pcall(function()
                     local char = getCharacter()
                     if not char then return end
                     for _, part in pairs(char:GetDescendants()) do
@@ -287,9 +390,10 @@ local function setSilentWalk(enabled)
                         end
                     end
                 end)
+                if not ok2 then logError("SilentWalk LOOP ERROR: " .. tostring(err2)) end
             end)
         else
-            pcall(function()
+            local ok2, err2 = pcall(function()
                 local char = getCharacter()
                 if char then
                     for _, part in pairs(char:GetDescendants()) do
@@ -299,13 +403,16 @@ local function setSilentWalk(enabled)
                     end
                 end
             end)
+            if not ok2 then logError("SilentWalk RESTORE ERROR: " .. tostring(err2)) end
         end
     end)
+    if not ok then logError("setSilentWalk ERROR: " .. tostring(err)) end
 end
+
 
 local originalLightingSettings = {Brightness=Lighting.Brightness, TimeOfDay=Lighting.TimeOfDay, Ambient=Lighting.Ambient, OutdoorAmbient=Lighting.OutdoorAmbient}
 local function setFullbrightState(state)
-    pcall(function()
+    local ok, err = pcall(function()
         states.fullbright = state
         if state then
             Lighting.Brightness = 2
@@ -316,18 +423,23 @@ local function setFullbrightState(state)
             for k, v in pairs(originalLightingSettings) do Lighting[k] = v end
         end
     end)
+    if not ok then logError("setFullbrightState ERROR: " .. tostring(err)) end
 end
 
+
 local function setNoFallDamage(state)
-    pcall(function()
+    local ok, err = pcall(function()
         states.noFallDamage = state
         if state then
-            if not hum or not hum.Parent or not hrp or not hrp.Parent then return end
+            if not hum or not hum.Parent or not hrp or not hrp.Parent then
+                logError("NoFallDamage: hum or hrp missing at enable time")
+                return
+            end
             local fallCorrection = RS.Heartbeat:Connect(function()
-                pcall(function()
-                    if not states.noFallDamage or not hrp or not hrp.Parent then 
+                local ok2, err2 = pcall(function()
+                    if not states.noFallDamage or not hrp or not hrp.Parent then
                         if fallCorrection then fallCorrection:Disconnect() end
-                        return 
+                        return
                     end
                     local velocity = hrp.AssemblyLinearVelocity
                     if velocity.Y < -50 then
@@ -345,15 +457,19 @@ local function setNoFallDamage(state)
                         hum:ChangeState(Enum.HumanoidStateType.Running)
                     end
                 end)
+                if not ok2 then logError("NoFallDamage LOOP ERROR: " .. tostring(err2)) end
             end)
             table.insert(allConns, fallCorrection)
         else
             if hrp then
-                pcall(function() hrp.Velocity = Vector3.new(hrp.Velocity.X, hrp.Velocity.Y, hrp.Velocity.Z) end)
+                local ok2, err2 = pcall(function() hrp.Velocity = Vector3.new(hrp.Velocity.X, hrp.Velocity.Y, hrp.Velocity.Z) end)
+                if not ok2 then logError("NoFallDamage DISABLE ERROR: " .. tostring(err2)) end
             end
         end
     end)
+    if not ok then logError("setNoFallDamage ERROR: " .. tostring(err)) end
 end
+
 
 local flyConn
 local flyVelocity
@@ -361,7 +477,7 @@ local flySpeed = 16
 
 local function getFlyDirection()
     local moveVec = Vector3.zero
-    pcall(function()
+    local ok, err = pcall(function()
         local camCF = workspace.CurrentCamera.CFrame
         if UIS:IsKeyDown(Enum.KeyCode.W) then moveVec += camCF.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.S) then moveVec -= camCF.LookVector end
@@ -370,23 +486,28 @@ local function getFlyDirection()
         if UIS:IsKeyDown(Enum.KeyCode.Space) then moveVec += Vector3.yAxis end
         if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveVec -= Vector3.yAxis end
     end)
+    if not ok then logError("getFlyDirection ERROR: " .. tostring(err)) end
     if moveVec.Magnitude > 0 then return moveVec.Unit end
     return Vector3.zero
 end
 
 local function setFly(state)
-    pcall(function()
+    local ok, err = pcall(function()
         states.fly = state
         if flyConn then flyConn:Disconnect() flyConn = nil end
-        if flyVelocity then pcall(function() flyVelocity:Destroy() end) flyVelocity = nil end
+        if flyVelocity then
+            local ok2, err2 = pcall(function() flyVelocity:Destroy() end)
+            if not ok2 then logError("Fly DESTROY BodyVelocity ERROR: " .. tostring(err2)) end
+            flyVelocity = nil
+        end
         if not state then
             if hrp then hrp.AssemblyLinearVelocity = Vector3.zero end
             return
         end
         char = LocalPlayer.Character
-        if not char then return end
+        if not char then logError("Fly: Character not found") return end
         hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
+        if not hrp then logError("Fly: HumanoidRootPart not found") return end
         flyVelocity = Instance.new("BodyVelocity")
         flyVelocity.Name = "StealthFly"
         flyVelocity.MaxForce = Vector3.one * 4000
@@ -394,7 +515,7 @@ local function setFly(state)
         flyVelocity.Velocity = Vector3.zero
         flyVelocity.Parent = hrp
         flyConn = RunService.Heartbeat:Connect(function()
-            pcall(function()
+            local ok2, err2 = pcall(function()
                 if not states.fly or not hrp or not hrp.Parent then return end
                 local dir = getFlyDirection()
                 if dir.Magnitude > 0 then
@@ -403,9 +524,12 @@ local function setFly(state)
                     flyVelocity.Velocity = Vector3.zero
                 end
             end)
+            if not ok2 then logError("Fly LOOP ERROR: " .. tostring(err2)) end
         end)
     end)
+    if not ok then logError("setFly ERROR: " .. tostring(err)) end
 end
+
 
 local function AutoReload()
     local args = {
@@ -413,69 +537,29 @@ local function AutoReload()
         [2] = false,
         [3] = 1,
         [4] = "Rifle Ammunition",
-        [5] = 5,
-        [6] = 12,
-        [7] = 30,
-        [8] = 6,
-        [9] = 42,
-        [10] = 45,
-        [11] = 2,
-        [12] = 21,
-        [13] = 28,
-        [14] = 33,
-        [15] = 37,
-        [16] = 48,
-        [17] = 26,
-        [18] = 14,
-        [19] = 14,
-        [20] = 38,
-        [21] = 26,
-        [22] = 48,
-        [23] = 36,
-        [24] = 30,
-        [25] = 15,
-        [26] = 30,
-        [27] = 5,
-        [28] = 27,
-        [29] = 11,
-        [30] = 31,
-        [31] = 43,
-        [32] = 30,
-        [33] = 5,
-        [34] = 44,
-        [35] = 40,
-        [36] = 10,
-        [37] = 23,
-        [38] = 19,
-        [39] = 32,
-        [40] = 18,
-        [41] = 45,
-        [42] = 30,
-        [43] = 29,
-        [44] = 8,
-        [45] = 23,
-        [46] = 34,
-        [47] = 2,
-        [48] = 12,
-        [49] = 5,
-        [50] = 41,
-        [51] = 47,
-        [52] = 2,
-        [53] = 2
+        [5] = 5,   [6] = 12,  [7] = 30,  [8] = 6,   [9] = 42,
+        [10] = 45, [11] = 2,  [12] = 21, [13] = 28, [14] = 33,
+        [15] = 37, [16] = 48, [17] = 26, [18] = 14, [19] = 14,
+        [20] = 38, [21] = 26, [22] = 48, [23] = 36, [24] = 30,
+        [25] = 15, [26] = 30, [27] = 5,  [28] = 27, [29] = 11,
+        [30] = 31, [31] = 43, [32] = 30, [33] = 5,  [34] = 44,
+        [35] = 40, [36] = 10, [37] = 23, [38] = 19, [39] = 32,
+        [40] = 18, [41] = 45, [42] = 30, [43] = 29, [44] = 8,
+        [45] = 23, [46] = 34, [47] = 2,  [48] = 12, [49] = 5,
+        [50] = 41, [51] = 47, [52] = 2,  [53] = 2
     }
     spawn(function()
         while states.autoreload do
-            pcall(function()
+            local ok, err = pcall(function()
                 wait(0.1)
                 game:GetService("ReplicatedStorage").Remotes.RemoteEvent:FireServer(unpack(args))
             end)
+            if not ok then logError("AutoReload LOOP ERROR: " .. tostring(err)) end
         end
     end)
 end
 
--- ============================================
--- AUTO FARM
--- ============================================
+
 local autoFarmSettings = {
     slot = 1,
     delay = 0.15,
@@ -490,7 +574,7 @@ end
 
 local function getLookTarget()
     local r1, r2, r3, r4 = nil, nil, nil, nil
-    pcall(function()
+    local ok, err = pcall(function()
         local unitRay = Camera:ScreenPointToRay(
             Camera.ViewportSize.X / 2,
             Camera.ViewportSize.Y / 2
@@ -509,11 +593,12 @@ local function getLookTarget()
             current = current.Parent
         end
     end)
+    if not ok then logError("getLookTarget ERROR: " .. tostring(err)) end
     return r1, r2, r3, r4
 end
 
 local function doFarmHit(resource, hitPart, position, material)
-    pcall(function()
+    local ok, err = pcall(function()
         local marker = getMarker(resource)
         local targetPart, targetCF, targetMat, isMarker
 
@@ -551,10 +636,11 @@ local function doFarmHit(resource, hitPart, position, material)
 
         game:GetService("ReplicatedStorage").Remotes.RemoteEvent:FireServer(table.unpack(args, 1, 48))
     end)
+    if not ok then logError("doFarmHit ERROR: " .. tostring(err)) end
 end
 
 local function setAutoFarm(enabled)
-    pcall(function()
+    local ok, err = pcall(function()
         states.autofarm = enabled
 
         if autoFarmLoop then
@@ -566,7 +652,7 @@ local function setAutoFarm(enabled)
             autoFarmLoop = safeSpawn(function()
                 while states.autofarm do
                     task.wait(autoFarmSettings.delay)
-                    pcall(function()
+                    local ok2, err2 = pcall(function()
                         local resource, part, position, material = getLookTarget()
                         if not resource then return end
                         for i = 1, autoFarmSettings.hitCount do
@@ -575,12 +661,14 @@ local function setAutoFarm(enabled)
                             task.wait(autoFarmSettings.delay)
                         end
                     end)
+                    if not ok2 then logError("AutoFarm LOOP ERROR: " .. tostring(err2)) end
                 end
             end)
         end
     end)
+    if not ok then logError("setAutoFarm ERROR: " .. tostring(err)) end
 end
--- ============================================
+
 
 local killAuraConnection = nil
 local killAuraSettings = {
@@ -594,7 +682,7 @@ local killAuraSettings = {
 
 local function calcularDistanciaAjustada(minhaHead, targetHead)
     local dist = math.huge
-    pcall(function()
+    local ok, err = pcall(function()
         if not minhaHead or not targetHead then return end
         local distanciaCentro = (minhaHead.Position - targetHead.Position).Magnitude
         if killAuraSettings.adjustForHitbox then
@@ -606,12 +694,13 @@ local function calcularDistanciaAjustada(minhaHead, targetHead)
             dist = distanciaCentro
         end
     end)
+    if not ok then logError("calcularDistanciaAjustada ERROR: " .. tostring(err)) end
     return dist
 end
 
 local function getNearbyPlayers()
     local nearbyPlayers = {}
-    pcall(function()
+    local ok, err = pcall(function()
         local character = getCharacter()
         if not character then return end
         local head = character:FindFirstChild("Head")
@@ -637,15 +726,16 @@ local function getNearbyPlayers()
         end
         table.sort(nearbyPlayers, function(a, b) return a.distance < b.distance end)
     end)
+    if not ok then logError("getNearbyPlayers ERROR: " .. tostring(err)) end
     return nearbyPlayers
 end
 
 local function attackWithSlot(targetData, slotNumber)
     local success = false
-    pcall(function()
+    local ok, err = pcall(function()
         local targetPlayer = targetData.model
         local targetPart = targetPlayer:FindFirstChild("LeftUpperArm") or targetPlayer:FindFirstChild("Head")
-        if not targetPart then return end
+        if not targetPart then logError("attackWithSlot: targetPart not found for slot " .. tostring(slotNumber)) return end
         local args = {
             [1] = "Melee Hit",
             [2] = false,
@@ -671,11 +761,12 @@ local function attackWithSlot(targetData, slotNumber)
         game:GetService("ReplicatedStorage").Remotes.RemoteEvent:FireServer(unpack(args))
         success = true
     end)
+    if not ok then logError("attackWithSlot ERROR [slot=" .. tostring(slotNumber) .. "]: " .. tostring(err)) end
     return success
 end
 
 local function attackPlayer(targetData)
-    pcall(function()
+    local ok, err = pcall(function()
         if killAuraSettings.attackAllSlots then
             for slot = 1, 6 do
                 attackWithSlot(targetData, slot)
@@ -685,10 +776,11 @@ local function attackPlayer(targetData)
             attackWithSlot(targetData, killAuraSettings.slot)
         end
     end)
+    if not ok then logError("attackPlayer ERROR: " .. tostring(err)) end
 end
 
 local function setKillAura(enabled)
-    pcall(function()
+    local ok, err = pcall(function()
         killAuraSettings.enabled = enabled
         if killAuraConnection then
             killAuraConnection:Disconnect()
@@ -696,7 +788,7 @@ local function setKillAura(enabled)
         end
         if enabled then
             killAuraConnection = RunService.Heartbeat:Connect(function()
-                pcall(function()
+                local ok2, err2 = pcall(function()
                     if not killAuraSettings.enabled then return end
                     local nearbyPlayers = getNearbyPlayers()
                     if #nearbyPlayers > 0 then
@@ -707,21 +799,24 @@ local function setKillAura(enabled)
                         end
                     end
                 end)
+                if not ok2 then logError("KillAura LOOP ERROR: " .. tostring(err2)) end
             end)
         end
     end)
+    if not ok then logError("setKillAura ERROR: " .. tostring(err)) end
 end
 
 LocalPlayer.CharacterAdded:Connect(function(char)
-    pcall(function()
+    local ok, err = pcall(function()
         task.wait(0.5)
     end)
+    if not ok then logError("CharacterAdded ERROR: " .. tostring(err)) end
 end)
 
--- UI Setup
+
 local window = library:window({
-    name = "Aspect", 
-    suffix = "Software", 
+    name = "Aspect",
+    suffix = "Software",
     gameInfo = "Aspect Software - Private Edition"
 })
 
@@ -737,20 +832,21 @@ for _, tab in {Player} do
         seperator = true,
         type = "toggle",
         callback = function(bool)
-            pcall(function()
+            local ok, err = pcall(function()
                 if Espliberary and Espliberary.toggle_feature then
                     Espliberary:toggle_feature("Enabled", bool)
                 end
             end)
+            if not ok then logError("ESP Enable ERROR: " .. tostring(err)) end
         end
     })
 
     local features = {
-        {name = "Names", feature = "Names"},
-        {name = "Boxes", feature = "Boxes"},
+        {name = "Names",     feature = "Names"},
+        {name = "Boxes",     feature = "Boxes"},
         {name = "Healthbar", feature = "Healthbar"},
-        {name = "Distance", feature = "Distance"},
-        {name = "Weapon", feature = "Weapon"},
+        {name = "Distance",  feature = "Distance"},
+        {name = "Weapon",    feature = "Weapon"},
         {name = "Skeletons", feature = "Skeletons"}
     }
 
@@ -759,11 +855,12 @@ for _, tab in {Player} do
             name = data.name,
             type = "toggle",
             callback = function(bool)
-                pcall(function()
+                local ok, err = pcall(function()
                     if Espliberary and Espliberary.toggle_feature then
                         Espliberary:toggle_feature(data.feature, bool)
                     end
                 end)
+                if not ok then logError("ESP Feature [" .. data.feature .. "] ERROR: " .. tostring(err)) end
             end
         })
     end
@@ -774,7 +871,8 @@ for _, tab in {Player} do
         max = 5000,
         default = 1000,
         callback = function(value)
-            pcall(function() Espliberary:set_max_distance(value) end)
+            local ok, err = pcall(function() Espliberary:set_max_distance(value) end)
+            if not ok then logError("ESP MaxDistance ERROR: " .. tostring(err)) end
         end
     })
 end
@@ -791,17 +889,21 @@ aimbotSection:toggle({
     name = "Enable Aimbot",
     seperator = true,
     type = "toggle",
-    callback = function(bool) pcall(setAimbot, bool) end
+    callback = function(bool)
+        local ok, err = pcall(setAimbot, bool)
+        if not ok then logError("UI Aimbot toggle ERROR: " .. tostring(err)) end
+    end
 })
 
 aimbotSection:toggle({
     name = "Show FOV",
     type = "toggle",
     callback = function(bool)
-        pcall(function()
+        local ok, err = pcall(function()
             states.showFOV = bool
             updateFOVCircle()
         end)
+        if not ok then logError("UI ShowFOV toggle ERROR: " .. tostring(err)) end
     end
 })
 
@@ -811,7 +913,10 @@ aimbotSection:slider({
     max = 20,
     default = 5,
     decimals = 0.1,
-    callback = function(value) pcall(function() settings.aimSmoothing = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() settings.aimSmoothing = value end)
+        if not ok then logError("UI Smoothness slider ERROR: " .. tostring(err)) end
+    end
 })
 
 aimbotSection:slider({
@@ -820,10 +925,11 @@ aimbotSection:slider({
     max = 800,
     default = 120,
     callback = function(value)
-        pcall(function()
+        local ok, err = pcall(function()
             settings.aimFOV = value
             updateFOVCircle()
         end)
+        if not ok then logError("UI FOVSize slider ERROR: " .. tostring(err)) end
     end
 })
 
@@ -831,7 +937,10 @@ aimbotSection:list({
     name = "Target Part",
     default = "Head",
     options = {"Head", "HumanoidRootPart", "Torso", "Closest Part"},
-    callback = function(value) pcall(function() settings.aimPart = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() settings.aimPart = value end)
+        if not ok then logError("UI TargetPart list ERROR: " .. tostring(err)) end
+    end
 })
 
 local hitboxSection = column2:section({name = "Hitbox", default = true, toggle = false})
@@ -840,7 +949,10 @@ hitboxSection:toggle({
     name = "Enable Hitbox",
     seperator = true,
     type = "toggle",
-    callback = function(bool) pcall(setHitbox, bool) end
+    callback = function(bool)
+        local ok, err = pcall(setHitbox, bool)
+        if not ok then logError("UI Hitbox toggle ERROR: " .. tostring(err)) end
+    end
 })
 
 hitboxSection:slider({
@@ -848,14 +960,20 @@ hitboxSection:slider({
     min = 1,
     max = 38,
     default = 5,
-    callback = function(value) pcall(function() settings.hitboxSize = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() settings.hitboxSize = value end)
+        if not ok then logError("UI HitboxSize slider ERROR: " .. tostring(err)) end
+    end
 })
 
 hitboxSection:list({
     name = "Body Part",
     default = "Head",
     options = {"Head"},
-    callback = function(value) pcall(function() settings.hitboxPart = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() settings.hitboxPart = value end)
+        if not ok then logError("UI HitboxPart list ERROR: " .. tostring(err)) end
+    end
 })
 
 -- aba Kill Aura
@@ -867,7 +985,10 @@ killAuraSection:toggle({
     name = "Enable Kill Aura",
     type = "toggle",
     seperator = true,
-    callback = function(bool) pcall(setKillAura, bool) end
+    callback = function(bool)
+        local ok, err = pcall(setKillAura, bool)
+        if not ok then logError("UI KillAura toggle ERROR: " .. tostring(err)) end
+    end
 })
 
 killAuraSection:slider({
@@ -875,7 +996,10 @@ killAuraSection:slider({
     min = 5,
     max = 50,
     default = 15,
-    callback = function(value) pcall(function() killAuraSettings.range = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() killAuraSettings.range = value end)
+        if not ok then logError("UI KA Range slider ERROR: " .. tostring(err)) end
+    end
 })
 
 killAuraSection:slider({
@@ -884,14 +1008,20 @@ killAuraSection:slider({
     max = 1,
     default = 0.1,
     decimals = 0.01,
-    callback = function(value) pcall(function() killAuraSettings.attackDelay = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() killAuraSettings.attackDelay = value end)
+        if not ok then logError("UI KA AttackDelay slider ERROR: " .. tostring(err)) end
+    end
 })
 
 killAuraSection:toggle({
     name = "Adjust for Hitbox",
     type = "toggle",
     default = true,
-    callback = function(bool) pcall(function() killAuraSettings.adjustForHitbox = bool end) end
+    callback = function(bool)
+        local ok, err = pcall(function() killAuraSettings.adjustForHitbox = bool end)
+        if not ok then logError("UI KA AdjustHitbox toggle ERROR: " .. tostring(err)) end
+    end
 })
 
 killAuraSection:toggle({
@@ -899,7 +1029,10 @@ killAuraSection:toggle({
     type = "toggle",
     seperator = true,
     default = false,
-    callback = function(bool) pcall(function() killAuraSettings.attackAllSlots = bool end) end
+    callback = function(bool)
+        local ok, err = pcall(function() killAuraSettings.attackAllSlots = bool end)
+        if not ok then logError("UI KA AllSlots toggle ERROR: " .. tostring(err)) end
+    end
 })
 
 killAuraSection:slider({
@@ -907,7 +1040,10 @@ killAuraSection:slider({
     min = 1,
     max = 6,
     default = 2,
-    callback = function(value) pcall(function() killAuraSettings.slot = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() killAuraSettings.slot = value end)
+        if not ok then logError("UI KA WeaponSlot slider ERROR: " .. tostring(err)) end
+    end
 })
 
 window:seperator({name = "Movement"})
@@ -916,17 +1052,18 @@ local Movement = window:tab({name = "Movement", tabs = {"Main"}})
 for _, tab in {Movement} do
     local column = tab:column({})
     local movementSection = column:section({name = "Movement", default = true, toggle = false})
-    
+
     movementSection:keybind({
         name = "Noclip Keybind",
         default = false,
         active = false,
         seperator = true,
         callback = function(bool)
-            pcall(function()
+            local ok, err = pcall(function()
                 states.noclip = bool
                 setNoClipState(bool)
             end)
+            if not ok then logError("UI Noclip keybind ERROR: " .. tostring(err)) end
         end
     })
 
@@ -935,7 +1072,10 @@ for _, tab in {Movement} do
         type = "toggle",
         seperator = true,
         default = false,
-        callback = function(bool) pcall(setNoFallDamage, bool) end
+        callback = function(bool)
+            local ok, err = pcall(setNoFallDamage, bool)
+            if not ok then logError("UI NoFallDamage toggle ERROR: " .. tostring(err)) end
+        end
     })
 
     movementSection:toggle({
@@ -943,16 +1083,22 @@ for _, tab in {Movement} do
         type = "toggle",
         default = false,
         seperator = false,
-        callback = function(bool) pcall(setCFSpeed, bool) end
+        callback = function(bool)
+            local ok, err = pcall(setCFSpeed, bool)
+            if not ok then logError("UI CFrameSpeed toggle ERROR: " .. tostring(err)) end
+        end
     })
-    
+
     movementSection:slider({
         name = "Speed Multiplier",
         min = 100,
         max = 250,
         default = 150,
         intervals = 0.1,
-        callback = function(value) pcall(function() settings.speedMultiplier = value / 100 end) end
+        callback = function(value)
+            local ok, err = pcall(function() settings.speedMultiplier = value / 100 end)
+            if not ok then logError("UI SpeedMultiplier slider ERROR: " .. tostring(err)) end
+        end
     })
 
     movementSection:keybind({
@@ -961,10 +1107,11 @@ for _, tab in {Movement} do
         active = false,
         seperator = true,
         callback = function(bool)
-            pcall(function()
+            local ok, err = pcall(function()
                 states.fly = bool
                 setFly(states.fly)
             end)
+            if not ok then logError("UI Fly keybind ERROR: " .. tostring(err)) end
         end
     })
 end
@@ -983,10 +1130,11 @@ ExploitsSection:toggle({
     type = "toggle",
     seperator = true,
     callback = function(bool)
-        pcall(function()
+        local ok, err = pcall(function()
             states.autoreload = bool
             if states.autoreload then AutoReload() end
         end)
+        if not ok then logError("UI AutoReload toggle ERROR: " .. tostring(err)) end
     end
 })
 
@@ -995,7 +1143,10 @@ local miscSection = column2:section({name = "Miscellaneous", default = true, tog
 miscSection:toggle({
     name = "Fullbright",
     type = "toggle",
-    callback = function(bool) pcall(setFullbrightState, bool) end
+    callback = function(bool)
+        local ok, err = pcall(setFullbrightState, bool)
+        if not ok then logError("UI Fullbright toggle ERROR: " .. tostring(err)) end
+    end
 })
 
 -- aba Auto Farm
@@ -1006,7 +1157,10 @@ autoFarmSection:toggle({
     name = "Enable Auto Farm",
     type = "toggle",
     seperator = true,
-    callback = function(bool) pcall(setAutoFarm, bool) end
+    callback = function(bool)
+        local ok, err = pcall(setAutoFarm, bool)
+        if not ok then logError("UI AutoFarm toggle ERROR: " .. tostring(err)) end
+    end
 })
 
 autoFarmSection:slider({
@@ -1014,7 +1168,10 @@ autoFarmSection:slider({
     min = 1,
     max = 6,
     default = 1,
-    callback = function(value) pcall(function() autoFarmSettings.slot = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() autoFarmSettings.slot = value end)
+        if not ok then logError("UI AF ToolSlot slider ERROR: " .. tostring(err)) end
+    end
 })
 
 autoFarmSection:slider({
@@ -1023,7 +1180,10 @@ autoFarmSection:slider({
     max = 1,
     default = 0.15,
     decimals = 0.01,
-    callback = function(value) pcall(function() autoFarmSettings.delay = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() autoFarmSettings.delay = value end)
+        if not ok then logError("UI AF HitDelay slider ERROR: " .. tostring(err)) end
+    end
 })
 
 autoFarmSection:slider({
@@ -1031,7 +1191,10 @@ autoFarmSection:slider({
     min = 1,
     max = 10,
     default = 3,
-    callback = function(value) pcall(function() autoFarmSettings.hitCount = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() autoFarmSettings.hitCount = value end)
+        if not ok then logError("UI AF HitsPerCycle slider ERROR: " .. tostring(err)) end
+    end
 })
 
 autoFarmSection:slider({
@@ -1039,12 +1202,16 @@ autoFarmSection:slider({
     min = 10,
     max = 200,
     default = 80,
-    callback = function(value) pcall(function() autoFarmSettings.range = value end) end
+    callback = function(value)
+        local ok, err = pcall(function() autoFarmSettings.range = value end)
+        if not ok then logError("UI AF Range slider ERROR: " .. tostring(err)) end
+    end
 })
 
-pcall(function() library:init_config(window) end)
+local ok, err = pcall(function() library:init_config(window) end)
+if not ok then logError("init_config ERROR: " .. tostring(err)) end
 
-pcall(function()
+local ok2, err2 = pcall(function()
     if library.notification then
         library:notification({
             title = "Aspect Software",
@@ -1053,3 +1220,6 @@ pcall(function()
         })
     end
 end)
+if not ok2 then logError("Notification ERROR: " .. tostring(err2)) end
+
+logError("SCRIPT CARREGADO COM SUCESSO - " .. os.date())
